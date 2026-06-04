@@ -98,16 +98,21 @@ class LikelihoodFields:
         self._dist_field = dist_cells.astype(float) * self._resolution
         self._has_field = True
 
-    def _beam_distances(self, scan, pose) -> Optional[np.ndarray]:
-        """Return per-beam nearest-obstacle distances (meters) for ``pose``."""
-        if not self._has_field or self._dist_field is None:
-            return None
-        points = laserscan_to_points(scan, self.max_range)
+    def _select_beams(self, points: np.ndarray) -> np.ndarray:
         if points.shape[0] == 0:
-            return np.empty(0, dtype=float)
+            return points
         if self.max_beams > 0 and points.shape[0] > self.max_beams:
             idx = np.linspace(0, points.shape[0] - 1, self.max_beams)
-            points = points[idx.astype(int)]
+            return points[idx.astype(int)]
+        return points
+
+    def _beam_distances_from_points(self, points, pose) -> Optional[np.ndarray]:
+        """Return per-beam nearest-obstacle distances for base-frame points."""
+        if not self._has_field or self._dist_field is None:
+            return None
+        points = self._select_beams(np.asarray(points, dtype=float).reshape(-1, 2))
+        if points.shape[0] == 0:
+            return np.empty(0, dtype=float)
 
         world = transform_points(points, pose)
         cols = np.floor((world[:, 0] - self._origin_x) / self._resolution)
@@ -116,11 +121,21 @@ class LikelihoodFields:
         rows = np.clip(rows, 0, self._height - 1).astype(int)
         return self._dist_field[rows, cols]
 
-    def update(self, scan, pose) -> float:
+    def _beam_distances(self, scan, pose) -> Optional[np.ndarray]:
+        """Return per-beam nearest-obstacle distances (meters) for ``pose``."""
+        if not self._has_field or self._dist_field is None:
+            return None
+        points = laserscan_to_points(scan, self.max_range)
+        return self._beam_distances_from_points(points, pose)
+
+    def update(self, scan, pose, scan_points_base=None) -> float:
         """Return the linear particle weight (product of beam likelihoods)."""
-        if scan is None:
+        if scan is None and scan_points_base is None:
             return 1.0
-        dists = self._beam_distances(scan, pose)
+        if scan_points_base is not None:
+            dists = self._beam_distances_from_points(scan_points_base, pose)
+        else:
+            dists = self._beam_distances(scan, pose)
         if dists is None or dists.size == 0:
             return 1.0
         prob = 1.0
@@ -131,11 +146,14 @@ class LikelihoodFields:
             prob *= phit
         return prob
 
-    def log_update(self, scan, pose) -> float:
+    def log_update(self, scan, pose, scan_points_base=None) -> float:
         """Return the log particle weight, summed per beam (PRD section 13.9)."""
-        if scan is None:
+        if scan is None and scan_points_base is None:
             return 0.0
-        dists = self._beam_distances(scan, pose)
+        if scan_points_base is not None:
+            dists = self._beam_distances_from_points(scan_points_base, pose)
+        else:
+            dists = self._beam_distances(scan, pose)
         if dists is None or dists.size == 0:
             return 0.0
         log_w = 0.0

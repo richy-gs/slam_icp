@@ -193,6 +193,7 @@ same `slam_icp_jetson_launch.py` launch file.
 | Symptom | Likely fix |
 |---------|------------|
 | No `/map` | Check `/scan` and encoder topics; verify `use_sim_time:=false` |
+| Scan/map rotated ~180° | Set LiDAR yaw in `urdf/puzzlebot_minimal.urdf` **or** `tf.scan_yaw_offset:=3.14159`; try `sllidar inverted:=true` |
 | TF errors in RViz | Run `ros2 run tf2_tools view_frames`; ensure only one `odom→base_footprint` publisher |
 | Empty scan in SLAM | Confirm RPLidar driver is running; check `ros2 topic hz /scan` |
 | `cv2` import error | Install JetPack OpenCV or `python3-opencv` from apt |

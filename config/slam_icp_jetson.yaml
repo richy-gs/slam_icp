@@ -75,6 +75,12 @@ slam_icp_node:
       odom_frame: "odom"
       map_frame: "map"
       scan_frame: "laser"
+      use_scan_extrinsic: true
+      scan_yaw_offset: 0.0
+      # Used only if TF lookup fails; defaults match puzzlebot_minimal.urdf.
+      scan_extrinsic_fallback_x: 0.053
+      scan_extrinsic_fallback_y: 0.0
+      scan_extrinsic_fallback_yaw: 0.0
       lookup_timeout_sec: 0.10
 
     qos:

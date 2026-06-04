@@ -36,7 +36,8 @@ from slam_icp.mcl import MclConfig, MonteCarloLocalizer
 from slam_icp.motion_model import MotionModelConfig
 from slam_icp.particle import Particle
 from slam_icp.pose_graph import PoseGraph
-from slam_icp.scan_utils import filter_valid_points, laserscan_to_points
+from slam_icp.scan_utils import (filter_valid_points, laserscan_to_base_points,
+                                 laserscan_to_points)
 from slam_icp.sensor_model import LikelihoodFields
 from slam_icp.util import (angle_diff, matrix_to_xytheta, quaternion_from_yaw,
                            transform_matrix, yaw_from_quaternion)
@@ -175,6 +176,11 @@ class SlamIcpNode(Node):
             ('tf.odom_frame', 'odom'),
             ('tf.map_frame', 'map'),
             ('tf.scan_frame', 'base_scan'),
+            ('tf.use_scan_extrinsic', True),
+            ('tf.scan_yaw_offset', 0.0),
+            ('tf.scan_extrinsic_fallback_x', 0.053),
+            ('tf.scan_extrinsic_fallback_y', 0.0),
+            ('tf.scan_extrinsic_fallback_yaw', 0.0),
             ('tf.lookup_timeout_sec', 0.10),
             ('qos.scan_best_effort', True),
             ('qos.map_transient_local', True),
@@ -247,7 +253,16 @@ class SlamIcpNode(Node):
         self._base_frame = str(self._get('tf.base_frame'))
         self._odom_frame = str(self._get('tf.odom_frame'))
         self._map_frame = str(self._get('tf.map_frame'))
+        self._scan_frame = str(self._get('tf.scan_frame'))
+        self._use_scan_extrinsic = bool(self._get('tf.use_scan_extrinsic'))
+        self._scan_yaw_offset = float(self._get('tf.scan_yaw_offset'))
+        self._scan_extrinsic_fallback = (
+            float(self._get('tf.scan_extrinsic_fallback_x')),
+            float(self._get('tf.scan_extrinsic_fallback_y')),
+            float(self._get('tf.scan_extrinsic_fallback_yaw')),
+        )
         self._lookup_timeout = float(self._get('tf.lookup_timeout_sec'))
+        self._warned_scan_extrinsic = False
 
         self._scan_best_effort = bool(self._get('qos.scan_best_effort'))
 
@@ -275,6 +290,28 @@ class SlamIcpNode(Node):
     # ------------------------------------------------------------------
     # Main pipeline
     # ------------------------------------------------------------------
+    def _scan_to_base_points(self, msg: LaserScan):
+        """Convert scan ranges to ``base_frame`` points using TF extrinsics."""
+        if self._use_scan_extrinsic:
+            points = laserscan_to_base_points(
+                msg, self._scan_max_range, self._tf_buffer,
+                self._base_frame, self._scan_frame, self._lookup_timeout,
+                min_range=self._scan_min_range,
+                use_extrinsic=True,
+                fallback=self._scan_extrinsic_fallback,
+                yaw_offset=self._scan_yaw_offset)
+            if (not self._warned_scan_extrinsic
+                    and msg.header.frame_id != self._base_frame):
+                self.get_logger().info(
+                    f'scan extrinsic: {msg.header.frame_id} -> '
+                    f'{self._base_frame} (TF + fallback)')
+                self._warned_scan_extrinsic = True
+            return points
+
+        return filter_valid_points(
+            laserscan_to_points(msg, self._scan_max_range),
+            self._scan_min_range)
+
     def _process_scan(self, msg: LaserScan):
         if not msg.ranges:
             return
@@ -284,9 +321,7 @@ class SlamIcpNode(Node):
                                    throttle_duration_sec=2.0)
             return
 
-        points = filter_valid_points(
-            laserscan_to_points(msg, self._scan_max_range),
-            self._scan_min_range)
+        points = self._scan_to_base_points(msg)
         if points.shape[0] < 5:
             self.get_logger().warn('scan too sparse after filtering',
                                    throttle_duration_sec=2.0)
@@ -321,7 +356,7 @@ class SlamIcpNode(Node):
             return
 
         # RUNNING: MCL update over the current map.
-        self._mcl.update(odom_delta, msg)
+        self._mcl.update(odom_delta, msg, scan_points_base=points)
         self._slam_pose = self._mcl.pose_estimate
 
         self._maybe_add_keyframe(points)

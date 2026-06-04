@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Republish LaserScan with a frame_id that matches the robot URDF."""
+"""Republish LaserScan with a consistent frame_id for RViz/TF.
+
+Note: rotating the URDF or changing ``frame_id`` here only affects RViz.
+``slam_icp_node`` must apply the laser->base extrinsic via TF when building
+the map (``tf.use_scan_extrinsic`` in YAML).
+"""
 
 import copy
 

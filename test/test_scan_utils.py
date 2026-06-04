@@ -18,8 +18,8 @@ import math
 
 import numpy as np
 
-from slam_icp.scan_utils import (filter_valid_points, laserscan_to_points,
-                                 transform_points)
+from slam_icp.scan_utils import (apply_planar_extrinsic, filter_valid_points,
+                                 laserscan_to_points, transform_points)
 
 
 class FakeScan:
@@ -57,6 +57,13 @@ def test_filter_valid_points_min_range():
     out = filter_valid_points(pts, min_range=0.1)
     assert out.shape[0] == 1
     np.testing.assert_allclose(out[0], [1.0, 0.0])
+
+
+def test_apply_planar_extrinsic_180deg():
+    pts = np.array([[1.0, 0.0], [0.0, 1.0]])
+    out = apply_planar_extrinsic(pts, 0.0, 0.0, math.pi)
+    np.testing.assert_allclose(out[:, 0], [-1.0, 0.0], atol=1e-6)
+    np.testing.assert_allclose(out[:, 1], [0.0, -1.0], atol=1e-6)
 
 
 def test_transform_translation():

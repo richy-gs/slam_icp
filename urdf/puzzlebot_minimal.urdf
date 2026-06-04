@@ -19,7 +19,9 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- Matches rpi_lidar_sensor offsets in puzzlebot_description. -->
+  <!-- Matches rpi_lidar_sensor offsets in puzzlebot_description.
+       If the LiDAR is mounted backwards, set rpy="0 0 3.14159" here;
+       slam_icp now applies this TF when building the map. -->
   <joint name="lidar_joint" type="fixed">
     <parent link="lidar_base_link"/>
     <child link="laser"/>

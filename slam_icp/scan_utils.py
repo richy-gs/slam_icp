@@ -15,9 +15,11 @@
 """Utilities to convert ``sensor_msgs/LaserScan`` data into 2D point clouds."""
 
 import math
-from typing import Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
+
+from slam_icp.util import yaw_from_quaternion
 
 PoseLike = Union[tuple, list, np.ndarray, object]
 
@@ -49,6 +51,86 @@ def laserscan_to_points(scan, max_range: float = 10.0) -> np.ndarray:
     xs = r * np.cos(a)
     ys = r * np.sin(a)
     return np.column_stack((xs, ys))
+
+
+def apply_planar_extrinsic(points: np.ndarray, dx: float, dy: float,
+                           dyaw: float) -> np.ndarray:
+    """Transform ``(N, 2)`` points from a sensor frame into a target frame."""
+    points = np.asarray(points, dtype=float).reshape(-1, 2)
+    if points.shape[0] == 0:
+        return points.copy()
+    c = math.cos(dyaw)
+    s = math.sin(dyaw)
+    rot = np.array([[c, -s], [s, c]], dtype=float)
+    return points @ rot.T + np.array([dx, dy], dtype=float)
+
+
+def planar_extrinsic_from_transform(transform) -> Tuple[float, float, float]:
+    """Extract ``(dx, dy, dyaw)`` mapping source-frame points into target frame."""
+    t = transform.transform
+    yaw = yaw_from_quaternion(
+        t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w)
+    return float(t.translation.x), float(t.translation.y), yaw
+
+
+def lookup_scan_extrinsic(tf_buffer, target_frame: str, source_frame: str,
+                          stamp, timeout_sec: float,
+                          fallback: Optional[Tuple[float, float, float]] = None,
+                          yaw_offset: float = 0.0):
+    """
+    Return ``(dx, dy, dyaw)`` from ``source_frame`` to ``target_frame``.
+
+    Uses ``tf_buffer.lookup_transform(target, source, ...)``. On failure,
+    returns ``fallback`` when provided.
+    """
+    if target_frame == source_frame:
+        extrinsic = (0.0, 0.0, 0.0)
+    else:
+        extrinsic = None
+        try:
+            import rclpy
+            from tf2_ros import TransformException
+
+            if stamp is None or (stamp.sec == 0 and stamp.nanosec == 0):
+                when = rclpy.time.Time()
+            else:
+                when = stamp
+            transform = tf_buffer.lookup_transform(
+                target_frame, source_frame, when,
+                timeout=rclpy.duration.Duration(seconds=timeout_sec))
+            extrinsic = planar_extrinsic_from_transform(transform)
+        except Exception:  # noqa: BLE001 - TransformException or runtime import
+            extrinsic = fallback
+
+        if extrinsic is None:
+            return None
+
+    dx, dy, dyaw = extrinsic
+    dyaw = math.atan2(math.sin(dyaw + yaw_offset),
+                       math.cos(dyaw + yaw_offset))
+    return dx, dy, dyaw
+
+
+def laserscan_to_base_points(scan, max_range: float, tf_buffer,
+                             base_frame: str, scan_frame: str,
+                             timeout_sec: float,
+                             min_range: float = 0.1,
+                             use_extrinsic: bool = True,
+                             fallback: Optional[Tuple[float, float, float]] = None,
+                             yaw_offset: float = 0.0) -> np.ndarray:
+    """Convert a scan to ``(N, 2)`` points expressed in ``base_frame``."""
+    points = filter_valid_points(
+        laserscan_to_points(scan, max_range), min_range)
+    if not use_extrinsic or points.shape[0] == 0:
+        return points
+
+    source_frame = scan.header.frame_id or scan_frame
+    extrinsic = lookup_scan_extrinsic(
+        tf_buffer, base_frame, source_frame, scan.header.stamp,
+        timeout_sec, fallback=fallback, yaw_offset=yaw_offset)
+    if extrinsic is None:
+        return points
+    return apply_planar_extrinsic(points, *extrinsic)
 
 
 def filter_valid_points(points: np.ndarray,

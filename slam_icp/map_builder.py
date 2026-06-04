@@ -66,7 +66,7 @@ class MapBuilder:
         self._known = np.zeros((self.height, self.width), dtype=bool)
 
     def update(self, scan_points: np.ndarray, robot_pose) -> None:
-        """Integrate a scan (points in robot frame) taken at ``robot_pose``."""
+        """Integrate a scan (points in ``base_frame``) taken at ``robot_pose``."""
         scan_points = np.asarray(scan_points, dtype=float).reshape(-1, 2)
         if hasattr(robot_pose, 'yaw'):
             rx, ry = robot_pose.x, robot_pose.y

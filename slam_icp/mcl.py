@@ -87,7 +87,8 @@ class MonteCarloLocalizer:
     # ------------------------------------------------------------------
     # Public update entry point
     # ------------------------------------------------------------------
-    def update(self, odom_delta, scan, occupancy_grid=None,
+    def update(self, odom_delta, scan, scan_points_base=None,
+               occupancy_grid=None,
                resolution: Optional[float] = None, origin=None) -> Particle:
         """
         Advance the filter by one step and return the estimated pose.
@@ -106,9 +107,9 @@ class MonteCarloLocalizer:
             return self._pose_estimate
 
         if self.config.adaptive:
-            self._update_adaptive(odom_delta, scan)
+            self._update_adaptive(odom_delta, scan, scan_points_base)
         else:
-            self._update_fixed(odom_delta, scan)
+            self._update_fixed(odom_delta, scan, scan_points_base)
 
         self._pose_estimate = self._weighted_mean(self.particles)
         return self._pose_estimate
@@ -116,7 +117,7 @@ class MonteCarloLocalizer:
     # ------------------------------------------------------------------
     # Fixed-size filter
     # ------------------------------------------------------------------
-    def _update_fixed(self, odom_delta, scan) -> None:
+    def _update_fixed(self, odom_delta, scan, scan_points_base=None) -> None:
         prev_ref = (0.0, 0.0, 0.0)
         predicted = []
         log_weights = np.empty(len(self.particles), dtype=float)
@@ -124,7 +125,8 @@ class MonteCarloLocalizer:
             pred = sample_odom_motion_model(
                 particle, prev_ref, odom_delta, self.motion_cfg, self.rng)
             predicted.append(pred)
-            log_weights[i] = self._log_weight(scan, pred)
+            log_weights[i] = self._log_weight(
+                scan, pred, scan_points_base=scan_points_base)
 
         weights = self._softmax(log_weights)
         for pred, w in zip(predicted, weights):
@@ -139,7 +141,7 @@ class MonteCarloLocalizer:
     # ------------------------------------------------------------------
     # Adaptive (KLD) filter
     # ------------------------------------------------------------------
-    def _update_adaptive(self, odom_delta, scan) -> None:
+    def _update_adaptive(self, odom_delta, scan, scan_points_base=None) -> None:
         prev_ref = (0.0, 0.0, 0.0)
         cum = self._cumulative_weights(self.particles)
 
@@ -156,7 +158,8 @@ class MonteCarloLocalizer:
             pred = sample_odom_motion_model(
                 sampled, prev_ref, odom_delta, self.motion_cfg, self.rng)
             new_particles.append(pred)
-            log_weights.append(self._log_weight(scan, pred))
+            log_weights.append(self._log_weight(
+                scan, pred, scan_points_base=scan_points_base))
 
             key = (
                 int(math.floor(pred.x / bin_xy)),
@@ -181,10 +184,12 @@ class MonteCarloLocalizer:
     # ------------------------------------------------------------------
     # Weighting helpers
     # ------------------------------------------------------------------
-    def _log_weight(self, scan, particle: Particle) -> float:
+    def _log_weight(self, scan, particle: Particle,
+                    scan_points_base=None) -> float:
         if self.sensor_model is None:
             return 0.0
-        return self.sensor_model.log_update(scan, particle)
+        return self.sensor_model.log_update(
+            scan, particle, scan_points_base=scan_points_base)
 
     @staticmethod
     def _softmax(log_weights: np.ndarray) -> np.ndarray:
