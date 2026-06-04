@@ -102,6 +102,10 @@ Tune wheel geometry if needed:
 
 ```bash
 ros2 launch slam_icp slam_icp_jetson_launch.py wheel_radius:=0.05 wheel_base:=0.19
+
+# If the robot advances backward in RViz while driving forward physically:
+ros2 launch slam_icp slam_icp_jetson_launch.py linear_sign:=-1.0
+# (try `linear_sign:=1.0` if it already moves backward with the default)
 ```
 
 Parameters tuned for Nano 2 GB live in `config/slam_icp_jetson.yaml` (fewer
@@ -194,6 +198,8 @@ same `slam_icp_jetson_launch.py` launch file.
 |---------|------------|
 | No `/map` | Check `/scan` and encoder topics; verify `use_sim_time:=false` |
 | Scan/map rotated ~180° | Set LiDAR yaw in `urdf/puzzlebot_minimal.urdf` **or** `tf.scan_yaw_offset:=3.14159`; try `sllidar inverted:=true` |
+| Robot moves backward in RViz | Launch with `linear_sign:=1.0` or `linear_sign:=-1.0` (Puzzlebot default is `-1.0`) |
+| Turns mirrored | `angular_sign:=-1.0` or `swap_wheels:=true` |
 | TF errors in RViz | Run `ros2 run tf2_tools view_frames`; ensure only one `odom→base_footprint` publisher |
 | Empty scan in SLAM | Confirm RPLidar driver is running; check `ros2 topic hz /scan` |
 | `cv2` import error | Install JetPack OpenCV or `python3-opencv` from apt |

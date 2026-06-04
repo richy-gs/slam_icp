@@ -103,3 +103,35 @@ def sample_odom_motion_model(
     yaw = curr_yaw + t_d1 + t_d2
 
     return Particle(x=x, y=y, yaw=yaw, weight=particle.weight)
+
+
+def sample_odom_delta_motion_model(
+    particle: Particle,
+    delta: Tuple[float, float, float],
+    cfg: MotionModelConfig,
+    rng: Optional[np.random.Generator] = None,
+) -> Particle:
+    """
+    Propagate ``particle`` by relative odometry delta in the particle frame.
+
+    ``delta`` is ``(dx, dy, dyaw)`` from the previous robot pose to the
+    current one (same convention as ``SlamIcpNode._odom_delta``).
+    """
+    dx, dy, dyaw = float(delta[0]), float(delta[1]), float(delta[2])
+    dt = math.hypot(dx, dy)
+    rot1 = math.atan2(dy, dx) if dt > _MOVED_TOO_CLOSE else 0.0
+    rot2 = angle_diff(dyaw, rot1)
+
+    a1, a2, a3, a4 = cfg.alpha1, cfg.alpha2, cfg.alpha3, cfg.alpha4
+    std_dev_d1 = math.sqrt(a1 * rot1 * rot1 + a2 * dt * dt)
+    std_dev_dt = math.sqrt(a3 * dt * dt + a4 * rot1 * rot1 + a4 * rot2 * rot2)
+    std_dev_d2 = math.sqrt(a1 * rot2 * rot2 + a2 * dt * dt)
+
+    t_d1 = angle_diff(rot1, _sample_normal(std_dev_d1, rng))
+    t_dt = dt + _sample_normal(std_dev_dt, rng)
+    t_d2 = angle_diff(rot2, _sample_normal(std_dev_d2, rng))
+
+    x = particle.x + t_dt * math.cos(particle.yaw + t_d1)
+    y = particle.y + t_dt * math.sin(particle.yaw + t_d1)
+    yaw = particle.yaw + t_d1 + t_d2
+    return Particle(x=x, y=y, yaw=yaw, weight=particle.weight)

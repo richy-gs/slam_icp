@@ -18,7 +18,11 @@ import math
 
 import numpy as np
 
-from slam_icp.motion_model import MotionModelConfig, sample_odom_motion_model
+from slam_icp.motion_model import (
+    MotionModelConfig,
+    sample_odom_delta_motion_model,
+    sample_odom_motion_model,
+)
 from slam_icp.particle import Particle
 
 
@@ -65,6 +69,18 @@ def test_rotate_90():
         particle, (0.0, 0.0, 0.0), (0.0, 0.0, math.pi / 2.0), cfg)
     assert abs(yaws.mean() - math.pi / 2.0) < 0.05
     assert yaws.std() < 0.2
+
+
+def test_delta_forward_in_particle_frame():
+    """Delta (1,0,0) advances along the particle heading, not global +X."""
+    cfg = MotionModelConfig(alpha1=0.0, alpha2=0.0, alpha3=0.0, alpha4=0.0)
+    particle = Particle(0.0, 0.0, math.pi / 2.0, 1.0)
+    rng = np.random.default_rng(0)
+    out = sample_odom_delta_motion_model(
+        particle, (1.0, 0.0, 0.0), cfg, rng)
+    assert abs(out.x) < 1e-9
+    assert abs(out.y - 1.0) < 1e-9
+    assert abs(out.yaw - math.pi / 2.0) < 1e-9
 
 
 def test_zero_noise_deterministic():

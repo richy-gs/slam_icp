@@ -1,0 +1,10 @@
+# Puzzlebot wheel odometry on Jetson (encoder sign calibration).
+wheel_odometry:
+  ros__parameters:
+    use_sim_time: false
+    wheel_radius: 0.05
+    wheel_base: 0.19
+    # Firmware often reports negative wheel speeds when driving forward.
+    linear_sign: -1.0
+    angular_sign: 1.0
+    swap_wheels: false

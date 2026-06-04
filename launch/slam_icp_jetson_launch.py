@@ -43,6 +43,7 @@ def generate_launch_description():
     """Build the self-contained Jetson / real-robot launch description."""
     pkg_share = get_package_share_directory('slam_icp')
     params_file = os.path.join(pkg_share, 'config', 'slam_icp_jetson.yaml')
+    odom_params_file = os.path.join(pkg_share, 'config', 'wheel_odometry_jetson.yaml')
     rviz_config = os.path.join(pkg_share, 'config', 'rviz_slam.rviz')
     urdf_path = os.path.join(pkg_share, 'urdf', 'puzzlebot_minimal.urdf')
 
@@ -53,6 +54,9 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     wheel_radius = LaunchConfiguration('wheel_radius')
     wheel_base = LaunchConfiguration('wheel_base')
+    linear_sign = LaunchConfiguration('linear_sign')
+    angular_sign = LaunchConfiguration('angular_sign')
+    swap_wheels = LaunchConfiguration('swap_wheels')
 
     robot_state_publisher = Node(
         package='robot_state_publisher',
@@ -70,11 +74,17 @@ def generate_launch_description():
         executable='wheel_odometry',
         name='wheel_odometry',
         output='screen',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'wheel_radius': wheel_radius,
-            'wheel_base': wheel_base,
-        }],
+        parameters=[
+            odom_params_file,
+            {
+                'use_sim_time': use_sim_time,
+                'wheel_radius': wheel_radius,
+                'wheel_base': wheel_base,
+                'linear_sign': linear_sign,
+                'angular_sign': angular_sign,
+                'swap_wheels': swap_wheels,
+            },
+        ],
     )
 
     scan_republisher = Node(
@@ -118,6 +128,21 @@ def generate_launch_description():
             'wheel_base',
             default_value='0.19',
             description='Track width between wheels (m)',
+        ),
+        DeclareLaunchArgument(
+            'linear_sign',
+            default_value='-1.0',
+            description='Multiply forward velocity (use -1 if RViz moves backward)',
+        ),
+        DeclareLaunchArgument(
+            'angular_sign',
+            default_value='1.0',
+            description='Multiply yaw rate (use -1 if turns are mirrored)',
+        ),
+        DeclareLaunchArgument(
+            'swap_wheels',
+            default_value='false',
+            description='Swap left/right encoder topics',
         ),
         robot_state_publisher,
         wheel_odometry,

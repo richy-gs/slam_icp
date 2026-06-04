@@ -27,7 +27,8 @@ from typing import List, Optional
 
 import numpy as np
 
-from slam_icp.motion_model import MotionModelConfig, sample_odom_motion_model
+from slam_icp.motion_model import (MotionModelConfig,
+                                   sample_odom_delta_motion_model)
 from slam_icp.particle import Particle
 from slam_icp.sensor_model import LikelihoodFields
 
@@ -118,12 +119,11 @@ class MonteCarloLocalizer:
     # Fixed-size filter
     # ------------------------------------------------------------------
     def _update_fixed(self, odom_delta, scan, scan_points_base=None) -> None:
-        prev_ref = (0.0, 0.0, 0.0)
         predicted = []
         log_weights = np.empty(len(self.particles), dtype=float)
         for i, particle in enumerate(self.particles):
-            pred = sample_odom_motion_model(
-                particle, prev_ref, odom_delta, self.motion_cfg, self.rng)
+            pred = sample_odom_delta_motion_model(
+                particle, odom_delta, self.motion_cfg, self.rng)
             predicted.append(pred)
             log_weights[i] = self._log_weight(
                 scan, pred, scan_points_base=scan_points_base)
@@ -142,7 +142,6 @@ class MonteCarloLocalizer:
     # Adaptive (KLD) filter
     # ------------------------------------------------------------------
     def _update_adaptive(self, odom_delta, scan, scan_points_base=None) -> None:
-        prev_ref = (0.0, 0.0, 0.0)
         cum = self._cumulative_weights(self.particles)
 
         new_particles: List[Particle] = []
@@ -155,8 +154,8 @@ class MonteCarloLocalizer:
 
         while len(new_particles) < int(required):
             sampled = self._sample_from_cumulative(self.particles, cum)
-            pred = sample_odom_motion_model(
-                sampled, prev_ref, odom_delta, self.motion_cfg, self.rng)
+            pred = sample_odom_delta_motion_model(
+                sampled, odom_delta, self.motion_cfg, self.rng)
             new_particles.append(pred)
             log_weights.append(self._log_weight(
                 scan, pred, scan_points_base=scan_points_base))

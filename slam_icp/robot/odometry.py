@@ -54,9 +54,15 @@ class WheelOdometryNode(Node):
         self.declare_parameter('right_encoder_topic', '/VelocityEncR')
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('update_rate_hz', 20.0)
+        self.declare_parameter('linear_sign', 1.0)
+        self.declare_parameter('angular_sign', 1.0)
+        self.declare_parameter('swap_wheels', False)
 
         self.r = float(self.get_parameter('wheel_radius').value)
         self.L = float(self.get_parameter('wheel_base').value)
+        self.linear_sign = float(self.get_parameter('linear_sign').value)
+        self.angular_sign = float(self.get_parameter('angular_sign').value)
+        self.swap_wheels = bool(self.get_parameter('swap_wheels').value)
         self.odom_frame = str(self.get_parameter('odom_frame').value)
         self.base_frame = str(self.get_parameter('base_frame').value)
         left_topic = str(self.get_parameter('left_encoder_topic').value)
@@ -83,7 +89,10 @@ class WheelOdometryNode(Node):
 
         self.get_logger().info(
             f'wheel odometry: encoders -> {odom_topic} + TF '
-            f'{self.odom_frame}->{self.base_frame}')
+            f'{self.odom_frame}->{self.base_frame} '
+            f'(linear_sign={self.linear_sign}, '
+            f'angular_sign={self.angular_sign}, '
+            f'swap_wheels={self.swap_wheels})')
 
     def _left_callback(self, msg):
         self.w_l = float(msg.data)
@@ -99,8 +108,11 @@ class WheelOdometryNode(Node):
         if dt <= 0.0 or dt > 0.2:
             return
 
-        v = self.r * (self.w_r + self.w_l) / 2.0
-        w = self.r * (self.w_r - self.w_l) / self.L
+        w_l = self.w_r if self.swap_wheels else self.w_l
+        w_r = self.w_l if self.swap_wheels else self.w_r
+
+        v = self.linear_sign * self.r * (w_r + w_l) / 2.0
+        w = self.angular_sign * self.r * (w_r - w_l) / self.L
 
         self.x += v * math.cos(self.yaw) * dt
         self.y += v * math.sin(self.yaw) * dt
