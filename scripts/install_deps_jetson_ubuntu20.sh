@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Install ROS 2 Humble dependencies for slam_icp on Ubuntu 22.04.
+# Jetson + slam_icp on-robot stack — ROS 2 Humble dependencies.
+#
+# Native Humble apt packages target Ubuntu 22.04 (JetPack 6). On Ubuntu 20.04
+# (JetPack 5) install Humble via Docker (ros:humble-ros-base) or upgrade the
+# board image before running this script.
 set -euo pipefail
 
 ROS_DISTRO="${ROS_DISTRO:-humble}"
+UBUNTU_VERSION="$(lsb_release -rs 2>/dev/null || echo unknown)"
 
 if [[ "${ROS_DISTRO}" != "humble" ]]; then
   echo "Warning: slam_icp is developed for ROS 2 Humble; ROS_DISTRO=${ROS_DISTRO}" >&2
 fi
 
-if [[ "$(lsb_release -rs 2>/dev/null)" != "22.04" ]]; then
-  echo "Warning: this script targets Ubuntu 22.04 (native Humble)." >&2
+if [[ "${UBUNTU_VERSION}" == "20.04" ]]; then
+  echo "Note: Ubuntu 20.04 (JetPack 5) has no official ros-humble debs." >&2
+  echo "      Use JetPack 6 (22.04), or run Humble in Docker — see docs/jetson_jetpack5_ubuntu20.md" >&2
 fi
 
 sudo apt update
@@ -23,9 +29,6 @@ sudo apt install -y \
   "ros-${ROS_DISTRO}-tf2-geometry-msgs" \
   "ros-${ROS_DISTRO}-robot-state-publisher" \
   "ros-${ROS_DISTRO}-rviz2" \
-  "ros-${ROS_DISTRO}-gazebo-ros-pkgs" \
-  "ros-${ROS_DISTRO}-turtlebot3-gazebo" \
-  "ros-${ROS_DISTRO}-turtlebot3-description" \
   python3-colcon-common-extensions \
   python3-rosdep \
   python3-numpy \
@@ -34,11 +37,12 @@ sudo apt install -y \
   python3-yaml
 
 echo ""
-echo "Done (ROS 2 ${ROS_DISTRO}). Clone slam_icp into your workspace src/, then:"
+echo "Done (ROS 2 ${ROS_DISTRO}). Next steps on the Jetson:"
+echo "  mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src"
+echo "  # copy or clone slam_icp here (only this package is required)"
+echo "  cd ~/ros2_ws"
 echo "  source /opt/ros/${ROS_DISTRO}/setup.bash"
 echo "  rosdep install -i --from-path src --rosdistro ${ROS_DISTRO} -y"
 echo "  colcon build --packages-select slam_icp"
 echo "  source install/setup.bash"
-echo ""
-echo "Simulation:  ros2 launch slam_icp slam_icp_gazebo_launch.py rviz:=true"
-echo "Real robot:  ros2 launch slam_icp slam_icp_jetson_launch.py"
+echo "  ros2 launch slam_icp slam_icp_jetson_launch.py"

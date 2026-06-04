@@ -1,14 +1,16 @@
 # Jetson JetPack 5 — Ubuntu 20.04 example
 
-This guide shows how to run **slam_icp** on an NVIDIA Jetson with **JetPack 5.x**
-(Ubuntu 20.04). JetPack 5 does not ship ROS 2 Humble natively (Humble targets
-Ubuntu 22.04), so pick the path that matches your hardware.
+This guide shows how to run **slam_icp** on an NVIDIA Jetson Nano (2 GB) with
+**JetPack 5.x** (Ubuntu 20.04). The package is **self-contained**: wheel
+odometry, scan frame fix, minimal URDF, and SLAM live inside `slam_icp` — no
+`odom_to_tf`, `puzzlebot_description`, or Gazebo required on the robot.
 
 | Goal | Recommended approach |
 |------|----------------------|
-| SLAM on a **real Puzzlebot / LiDAR robot** | ROS 2 Foxy + pip wheels on Jetson |
+| SLAM on a **real Puzzlebot / LiDAR robot** | ROS 2 **Humble** + `slam_icp_jetson_launch.py` |
+| Native Humble on Jetson | **JetPack 6** (Ubuntu 22.04) — run `install_deps_jetson_ubuntu20.sh` |
+| JetPack 5 (Ubuntu 20.04) | Humble in **Docker** (`ros:humble-ros-base`) — see Example B |
 | Full **Gazebo simulation** on Jetson | Not recommended (heavy); use a desktop PC |
-| Same code as desktop Humble | Docker with `ros:humble` on Jetson, or upgrade to JetPack 6 (22.04) |
 
 ---
 
@@ -17,28 +19,30 @@ Ubuntu 22.04), so pick the path that matches your hardware.
 Typical stack on JetPack 5 + Ubuntu 20.04:
 
 ```
-RPLidar driver  →  /scan
-wheel odometry  →  /odom
-robot_state_publisher  →  TF odom → base_footprint → laser_frame
-slam_icp_node   →  /map, /slam_pose, TF map → odom
+RPLidar driver   →  /scan
+wheel encoders   →  /VelocityEncL, /VelocityEncR
+slam_icp launch  →  /odom, TF, /map, /slam_pose
 ```
 
-### 1. Install ROS 2 Foxy (Ubuntu 20.04 native)
+Bundled nodes inside `slam_icp`:
 
-Follow the [official Foxy install guide](https://docs.ros.org/en/foxy/Installation/Ubuntu-Install-Debians.html), then:
+| Node | Role |
+|------|------|
+| `wheel_odometry` | encoders → `/odom` + TF `odom → base_footprint` |
+| `scan_republisher` | `/scan` → `/scan_fixed` with `frame_id=laser` |
+| `robot_state_publisher` | minimal URDF `base_footprint → laser` |
+| `slam_icp_node` | SLAM + TF `map → odom` |
+
+### 1. Install dependencies
 
 ```bash
-sudo apt update
-sudo apt install -y \
-  ros-foxy-rclpy \
-  ros-foxy-sensor-msgs \
-  ros-foxy-nav-msgs \
-  ros-foxy-geometry-msgs \
-  ros-foxy-tf2-ros \
-  ros-foxy-tf2-geometry-msgs \
-  python3-colcon-common-extensions \
-  python3-rosdep
+cd ~/ros2_ws/src/slam_icp
+chmod +x scripts/install_deps_jetson_ubuntu20.sh
+./scripts/install_deps_jetson_ubuntu20.sh
 ```
+
+Or follow the [Humble install guide](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html)
+(Ubuntu 22.04 / JetPack 6).
 
 Initialize rosdep once:
 
@@ -47,75 +51,71 @@ sudo rosdep init   # skip if already done
 rosdep update
 ```
 
-### 2. Clone and build slam_icp
+### 2. Copy slam_icp to the Jetson and build
+
+Only this package is needed in `~/ros2_ws/src/`:
 
 ```bash
 mkdir -p ~/ros2_ws/src
-cd ~/ros2_ws/src
-git clone https://github.com/richy-gs/slam_icp.git
+# scp/rsync/git clone slam_icp into ~/ros2_ws/src/
 cd ~/ros2_ws
 
-source /opt/ros/foxy/setup.bash
-rosdep install -i --from-path src --rosdistro foxy -y
+source /opt/ros/humble/setup.bash
+rosdep install -i --from-path src --rosdistro humble -y
 colcon build --packages-select slam_icp
 source install/setup.bash
 ```
 
-> **Foxy vs Humble:** This package is developed on Humble. Foxy uses the same
-> `rclpy` APIs for the topics and parameters used here; if you hit a Foxy-specific
-> error, check ROS 2 release notes or prefer the Docker/Humble path below.
+> **JetPack 5 (20.04):** there are no native `ros-humble-*` debs. Use Docker
+> (Example B) or upgrade to JetPack 6.
 
-### 3. Install Python scientific stack on Jetson
+### 3. Python scientific stack
 
-Prefer system packages when available:
+Prefer system packages on Jetson:
 
 ```bash
 sudo apt install -y python3-numpy python3-scipy python3-opencv python3-yaml
 ```
 
-If apt versions are too old or OpenCV is missing `distanceTransform`, use pip
-(Jetson often needs pre-built wheels):
+If OpenCV is missing `distanceTransform`, use pip (Jetson wheels may vary):
 
 ```bash
 pip3 install --user -r ~/ros2_ws/src/slam_icp/requirements.txt
 ```
 
-On some Jetson images you may need NVIDIA/community wheels for OpenCV; if
-`import cv2` fails after pip, install the Jetson OpenCV package from JetPack
-and keep only `numpy`/`scipy` from pip.
-
-### 4. Tune frames for your robot
-
-Edit `config/slam_icp.yaml` (or override at launch):
-
-```yaml
-slam_icp_node:
-  ros__parameters:
-    use_sim_time: false
-    tf:
-      base_frame: "base_footprint"
-      odom_frame: "odom"
-      map_frame: "map"
-      scan_frame: "laser_frame"    # Puzzlebot LiDAR frame
-```
-
-### 5. Launch SLAM only
-
-After your robot drivers publish `/scan`, `/odom`, and TF:
+### 4. Launch (after RPLidar + encoder drivers are running)
 
 ```bash
-source /opt/ros/foxy/setup.bash
+source /opt/ros/humble/setup.bash
 source ~/ros2_ws/install/setup.bash
 
-ros2 run slam_icp slam_icp_node --ros-args \
-  --params-file ~/ros2_ws/install/slam_icp/share/slam_icp/config/slam_icp.yaml
+ros2 launch slam_icp slam_icp_jetson_launch.py
 ```
 
-Optional RViz on the Jetson (or from a remote machine with `ROS_DOMAIN_ID` set):
+Optional RViz (heavy on 2 GB — prefer a remote PC with the same `ROS_DOMAIN_ID`):
 
 ```bash
-ros2 run rviz2 rviz2 -d ~/ros2_ws/install/slam_icp/share/slam_icp/config/rviz_slam.rviz
+ros2 launch slam_icp slam_icp_jetson_launch.py rviz:=true
 ```
+
+Tune wheel geometry if needed:
+
+```bash
+ros2 launch slam_icp slam_icp_jetson_launch.py wheel_radius:=0.05 wheel_base:=0.19
+```
+
+Parameters tuned for Nano 2 GB live in `config/slam_icp_jetson.yaml` (fewer
+particles, lower publish rate, smaller map).
+
+### 5. TF chain checklist
+
+```
+map  →  odom            slam_icp_node
+odom →  base_footprint   wheel_odometry
+base_footprint → laser    robot_state_publisher (urdf/puzzlebot_minimal.urdf)
+```
+
+Do **not** run a second node that publishes `odom → base_footprint`.
 
 ### 6. Autostart on boot (systemd example)
 
@@ -123,7 +123,7 @@ Create `/etc/systemd/system/slam-icp.service`:
 
 ```ini
 [Unit]
-Description=slam_icp node
+Description=slam_icp Jetson stack
 After=network-online.target
 Wants=network-online.target
 
@@ -131,14 +131,14 @@ Wants=network-online.target
 Type=simple
 User=jetson
 Environment="ROS_DOMAIN_ID=0"
-ExecStart=/bin/bash -lc 'source /opt/ros/foxy/setup.bash && source /home/jetson/ros2_ws/install/setup.bash && ros2 run slam_icp slam_icp_node --ros-args --params-file /home/jetson/ros2_ws/install/slam_icp/share/slam_icp/config/slam_icp.yaml'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source /home/jetson/ros2_ws/install/setup.bash && ros2 launch slam_icp slam_icp_jetson_launch.py'
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable after adjusting paths and ensuring robot drivers start first:
+Enable after adjusting paths and ensuring LiDAR/encoder drivers start first:
 
 ```bash
 sudo systemctl daemon-reload
@@ -153,7 +153,6 @@ sudo systemctl start slam-icp.service
 Use this when you want the exact same Humble environment as a desktop PC.
 
 ```bash
-# On the Jetson host
 docker pull ros:humble-ros-base
 
 docker run -it --rm --net=host \
@@ -161,12 +160,12 @@ docker run -it --rm --net=host \
   ros:humble-ros-base bash
 
 # Inside the container
-apt update && apt install -y python3-pip python3-colcon-common-extensions
+apt update && apt install -y python3-pip python3-colcon-common-extensions \
+  ros-humble-robot-state-publisher
 pip3 install -r /ws/src/slam_icp/requirements.txt
 cd /ws && colcon build --packages-select slam_icp
 source install/setup.bash
-ros2 run slam_icp slam_icp_node --ros-args \
-  --params-file install/slam_icp/share/slam_icp/config/slam_icp.yaml
+ros2 launch slam_icp slam_icp_jetson_launch.py
 ```
 
 Pass device nodes (`--device=/dev/ttyUSB0`) if the LiDAR is USB-attached.
@@ -175,19 +174,17 @@ Pass device nodes (`--device=/dev/ttyUSB0`) if the LiDAR is USB-attached.
 
 ## Example C — JetPack 6 / Ubuntu 22.04 (native Humble)
 
-JetPack 6 uses Ubuntu 22.04; follow the main [README](../README.md) without
-changes. This is the simplest path if you can upgrade the board image.
+JetPack 6 uses Ubuntu 22.04; use `scripts/install_deps_ubuntu22.sh` and the
+same `slam_icp_jetson_launch.py` launch file.
 
 ---
 
-## Performance tips on Jetson
+## Performance tips on Jetson Nano 2 GB
 
-- Lower `mcl.num_particles` and `scan.max_beams` in `slam_icp.yaml`.
-- Set `publish_rate_hz` to 2–5 on Nano-class boards.
-- Enable `pose_graph_runtime.optimize_in_thread: true` (default) to avoid
-  blocking the scan callback during loop-closure optimization.
-- Run Gazebo simulation on a workstation, not on the Jetson, unless you only
-  need headless testing.
+- Defaults in `slam_icp_jetson.yaml` already reduce particles, beams, and map size.
+- Set `publish_rate_hz` to 2–3 if CPU is saturated.
+- Keep `rviz:=false` on the Nano; visualize from a laptop.
+- Enable `pose_graph_runtime.optimize_in_thread: true` (default) to avoid blocking scans during loop closure.
 
 ---
 
@@ -195,7 +192,8 @@ changes. This is the simplest path if you can upgrade the board image.
 
 | Symptom | Likely fix |
 |---------|------------|
-| Node stuck in `WAITING_TF` | Check `robot_state_publisher` and frame names in YAML |
-| Empty `/map` | Verify `/scan` ranges and `use_sim_time` matches your clock |
+| No `/map` | Check `/scan` and encoder topics; verify `use_sim_time:=false` |
+| TF errors in RViz | Run `ros2 run tf2_tools view_frames`; ensure only one `odom→base_footprint` publisher |
+| Empty scan in SLAM | Confirm RPLidar driver is running; check `ros2 topic hz /scan` |
 | `cv2` import error | Install JetPack OpenCV or `python3-opencv` from apt |
-| High CPU / lag | Reduce particles, beams, and `publish_rate_hz` |
+| High CPU / lag | Lower particles and `publish_rate_hz` in `slam_icp_jetson.yaml` |

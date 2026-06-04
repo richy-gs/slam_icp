@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- Minimal Puzzlebot TF tree for on-robot SLAM (no meshes, no xacro). -->
+<robot name="puzzlebot_minimal">
+  <link name="base_footprint"/>
+  <link name="base_link"/>
+  <link name="lidar_base_link"/>
+  <link name="laser"/>
+
+  <!-- Matches puzzlebot_jetson_lidar_ed parameters (chassis_pos_z = 0.05). -->
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="lidar_base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Matches rpi_lidar_sensor offsets in puzzlebot_description. -->
+  <joint name="lidar_joint" type="fixed">
+    <parent link="lidar_base_link"/>
+    <child link="laser"/>
+    <origin xyz="0.053 0 0.01" rpy="0 0 0"/>
+  </joint>
+</robot>

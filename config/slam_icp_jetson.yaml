@@ -1,0 +1,82 @@
+# Jetson Nano 2GB / Puzzlebot real robot (ROS 2 Humble, no simulation).
+slam_icp_node:
+  ros__parameters:
+    use_sim_time: false
+    publish_rate_hz: 3.0
+    use_icp_for_initial_pose: true
+
+    icp:
+      max_iterations: 30
+      tolerance: 1.0e-4
+      max_correspondence_dist: 0.5
+
+    scan:
+      max_range: 10.0
+      min_range: 0.1
+      max_beams: 180
+
+    motion_model:
+      alpha1: 0.001
+      alpha2: 0.001
+      alpha3: 0.010
+      alpha4: 0.001
+
+    sensor_model:
+      std_dev: 0.05
+      max_beams: 20
+      model: "likelihood_field"
+
+    mcl:
+      adaptive: true
+      num_particles: 200
+      epsilon: 0.05
+      upper_quantile: 6.0
+      min_particles: 60
+      max_particles: 120
+      resampling_threshold: 0.5
+
+    map:
+      resolution: 0.05
+      width: 300
+      height: 300
+      origin_x: -7.5
+      origin_y: -7.5
+
+    pose_graph:
+      loop_closure_min_distance: 0.5
+      loop_closure_icp_threshold: 0.1
+      loop_closure_min_node_skip: 20
+      optimization_every_n_nodes: 15
+
+    bootstrap:
+      tf_wait_timeout_sec: 30.0
+      warmup_scans: 3
+
+    keyframe:
+      min_distance_m: 0.30
+      min_yaw_rad: 0.20
+
+    icp_runtime:
+      use_odom_seed: true
+      run_scan_to_map: true
+      min_correspondence_ratio: 0.30
+      reject_rmse_threshold: 0.50
+
+    sensor_model_runtime:
+      use_log_likelihood: true
+      dt_recompute_every_n_keyframes: 5
+
+    pose_graph_runtime:
+      optimize_in_thread: true
+      max_history_keyframes: 500
+
+    tf:
+      base_frame: "base_footprint"
+      odom_frame: "odom"
+      map_frame: "map"
+      scan_frame: "laser"
+      lookup_timeout_sec: 0.10
+
+    qos:
+      scan_best_effort: true
+      map_transient_local: true

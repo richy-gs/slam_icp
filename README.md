@@ -46,11 +46,8 @@ Useful launch arguments: `world`, `x_pose`, `y_pose`, `rviz`, `use_sim_time`.
 
 | Platform | ROS 2 | Notes |
 |----------|-------|-------|
-| Ubuntu 22.04 (desktop) | Humble | Primary target; full Gazebo Classic sim |
-| Ubuntu 20.04 (Jetson JetPack 5) | Foxy or Humble\* | See [docs/jetson_jetpack5_ubuntu20.md](docs/jetson_jetpack5_ubuntu20.md) |
-
-\*JetPack 5 ships Ubuntu 20.04; native Humble debs are for 22.04. The Jetson
-guide covers Foxy, containerized Humble, and on-robot (no Gazebo) setups.
+| Ubuntu 22.04 (desktop / JetPack 6) | Humble | Primary target; sim + real robot |
+| Ubuntu 20.04 (Jetson JetPack 5) | Humble (Docker) | Native debs unavailable; see [docs/jetson_jetpack5_ubuntu20.md](docs/jetson_jetpack5_ubuntu20.md) |
 
 ### Prerequisites
 
@@ -121,8 +118,9 @@ colcon test-result --verbose
 |-------------|-----------|-------|------------|
 | `slam_icp_gazebo_launch.py` | Gazebo Classic 11 | TurtleBot3 burger | `turtlebot3_gazebo` (via rosdep) |
 | `slam_icp_puzzlebot_launch.py` | GZ Sim (Ignition) | Puzzlebot + LiDAR | External `puzzlebot_gazebo` workspace |
+| `slam_icp_jetson_launch.py` | none (real robot) | Puzzlebot + RPLidar | **none** — self-contained |
 
-### Puzzlebot (optional)
+### Puzzlebot simulation (optional)
 
 The Puzzlebot launch expects a companion workspace (e.g.
 `TE3003B_Eq2/ros2_ws`) built and sourced **before** this package:
@@ -134,17 +132,25 @@ source ~/ros2_ws/install/setup.bash
 ros2 launch slam_icp slam_icp_puzzlebot_launch.py rviz:=true
 ```
 
-## Run on a real robot (no simulation)
+## Run on a real robot (Jetson / Puzzlebot)
 
-Only the SLAM node is required:
+Copy **only** `slam_icp` to the robot workspace. On JetPack 5 (Ubuntu 20.04)
+see [docs/jetson_jetpack5_ubuntu20.md](docs/jetson_jetpack5_ubuntu20.md).
+
+```bash
+# After RPLidar + encoder drivers are running:
+ros2 launch slam_icp slam_icp_jetson_launch.py
+```
+
+This launch starts wheel odometry, scan frame fix, minimal URDF TF, and SLAM.
+Parameters for Nano 2 GB: `config/slam_icp_jetson.yaml`.
+
+SLAM-only mode (if you already provide `/odom` and TF yourself):
 
 ```bash
 ros2 run slam_icp slam_icp_node --ros-args \
-  --params-file $(ros2 pkg prefix slam_icp)/share/slam_icp/config/slam_icp.yaml
+  --params-file $(ros2 pkg prefix slam_icp)/share/slam_icp/config/slam_icp_jetson.yaml
 ```
-
-Ensure `/scan` and `/odom` are published and TF connects `odom` →
-`base_footprint` (or adjust `tf.*` frames in `config/slam_icp.yaml`).
 
 ## Topic and TF contract
 
@@ -164,12 +170,13 @@ Parameters live in `config/slam_icp.yaml`. RViz layout: `config/rviz_slam.rviz`.
 
 ```
 slam_icp/
-├── slam_icp/          # Python modules (icp, mcl, map_builder, pose_graph, …)
-├── launch/            # Gazebo Classic + Puzzlebot launches
-├── config/            # slam_icp.yaml, rviz_slam.rviz
+├── slam_icp/          # Python modules (icp, mcl, map_builder, pose_graph, robot/, …)
+├── urdf/              # puzzlebot_minimal.urdf (on-robot TF, no external description pkg)
+├── launch/            # Gazebo Classic, Puzzlebot sim, Jetson real-robot
+├── config/            # slam_icp.yaml, slam_icp_jetson.yaml, rviz_slam.rviz
 ├── test/              # pytest unit tests
 ├── docs/              # Platform-specific guides (Jetson)
-├── scripts/           # Optional dependency installers
+├── scripts/           # install_deps_ubuntu22.sh, install_deps_jetson_ubuntu20.sh
 ├── package.xml
 ├── setup.py
 ├── requirements.txt

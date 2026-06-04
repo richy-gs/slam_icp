@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*')),
+        (os.path.join('share', package_name, 'urdf'), glob('urdf/*')),
     ],
     install_requires=['setuptools'],
     extras_require={'test': ['pytest']},
@@ -27,6 +28,8 @@ setup(
     entry_points={
         'console_scripts': [
             'slam_icp_node = slam_icp.slam_node:main',
+            'wheel_odometry = slam_icp.robot.odometry:main',
+            'scan_republisher = slam_icp.robot.scan_republisher:main',
         ],
     },
 )
