@@ -1,0 +1,17 @@
+# Python runtime dependencies for the slam_icp ROS 2 package.
+#
+# On a standard ROS 2 desktop install these are normally provided as system
+# packages (python3-numpy, python3-scipy, python3-opencv, python3-yaml) and
+# resolved by rosdep. Use this file when you prefer pip (e.g. inside a venv,
+# a Docker image, or on a Jetson where some wheels are easier via pip).
+#
+#   pip install -r requirements.txt
+#
+# ROS 2 client libraries (rclpy) and message packages (sensor_msgs, nav_msgs,
+# geometry_msgs, tf2_ros, tf2_geometry_msgs) are NOT pip-installable; install
+# them with the ROS 2 distribution (see README).
+
+numpy>=1.21
+scipy>=1.7
+opencv-python>=4.5
+PyYAML>=5.3

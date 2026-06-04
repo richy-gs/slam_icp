@@ -1,0 +1,5 @@
+# Development and test dependencies (optional).
+# ROS 2 test packages (ament_flake8, ament_pep257, ament_copyright) come from apt.
+
+-r requirements.txt
+pytest>=7.0

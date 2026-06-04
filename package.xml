@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>slam_icp</name>
+  <version>0.1.0</version>
+  <description>SLAM 2D con ICP y MCL para ROS 2 Humble, sin paquetes de navegacion externos.</description>
+  <maintainer email="richy-gs@users.noreply.github.com">richy-gs</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>ament_index_python</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+
+  <!-- Gazebo Classic + TurtleBot3 (slam_icp_gazebo_launch.py) -->
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>turtlebot3_gazebo</exec_depend>
+  <exec_depend>turtlebot3_description</exec_depend>
+
+  <test_depend>ament_pytest</test_depend>
+  <test_depend>pytest</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>ament_copyright</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
